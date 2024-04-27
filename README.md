@@ -9,6 +9,7 @@ This Mod expands the effect of Cataclysm spell and allows it to destroy rocks, t
 ## Options
 - Common
 	- Hit Cooldown
+	- Interact Cooldown (v1.0.1)
 	- Cast Cooldown
 	- Drop Items Pickup Time
 	- Drop Items Pickup Range
@@ -22,8 +23,13 @@ This Mod expands the effect of Cataclysm spell and allows it to destroy rocks, t
 	- Harvesting Range
 	- Harvesting Flowers
 	- Mana Infuse
+	- Shake Fruit Trees (v1.0.1)
 - Pickup
 	- Pickup Range
+
+## How to Use
+- Unlock Cataclysm skill. (Combat Tier 10 Row 1st)
+- Cast Cataclysm and rush towards the target.
 
 ## How to Install
 
