@@ -21,6 +21,7 @@ namespace CataclysmMining
         public static ConfigEntry<float> castCooldown;
         public static ConfigEntry<float> dropItemPickupTime;
         public static ConfigEntry<float> dropItemPickupRange;
+        public static ConfigEntry<float> interactCooldown;
         public static ConfigEntry<int> miningRange;
         public static ConfigEntry<bool> miningEnabled;
         public static ConfigEntry<bool> cuttingEnabled;
@@ -31,6 +32,7 @@ namespace CataclysmMining
         public static ConfigEntry<int> harvestingRange;
         public static ConfigEntry<bool> harvestingFlowers;
         public static ConfigEntry<bool> harvestingInfuse;
+        public static ConfigEntry<bool> harvestingShake;
         public static ConfigEntry<bool> pickupEnabled;
         public static ConfigEntry<int> pickupRange;
 
@@ -40,16 +42,18 @@ namespace CataclysmMining
         public static float damageMultiplier = 1f;
         public static List<DecorationHitCooldown> cooldowns = new List<DecorationHitCooldown>();
         public static Queue<Decoration> interactives = new Queue<Decoration>();
-        public static double lastInteraction = 0.0;
+        public static bool playPickupSound = false;
+        public static float lastInteraction = 0f;
 
         private const string PluginGuid = "niratokage125.sunhaven.CataclysmMining";
         private const string PluginName = "CataclysmMining";
-        private const string PluginVer = "1.0.0";
+        private const string PluginVer = "1.0.1";
         private void Awake()
         {
             logger = Logger;
             modEnabled = Config.Bind<bool>("Common", "Mod Enabled", true, "Set to false to disable this mod.");
             hitCooldown = Config.Bind<float>("Common", "Hit Cooldown", 0.2f, "Cooldown seconds between hits.");
+            interactCooldown = Config.Bind<float>("Common", "Interact Cooldown", 0.01f, "Cooldown seconds between interactions (pickup, infuse, ...). If 0, multiple interactions are executed at the same time.");
             castCooldown = Config.Bind<float>("Common", "Cast Cooldown", 0.5f, new ConfigDescription("Cast Cooldown Multiprier", new AcceptableValueRange<float>(0f, 1f)));
             dropItemPickupTime = Config.Bind<float>("Common", "Drop Items Pickup Time", 0.25f, new ConfigDescription("Drop Items Pickup Time While Cataclysm Multiprier", new AcceptableValueRange<float>(0f, 1f)));
             dropItemPickupRange = Config.Bind<float>("Common", "Drop Items Pickup Range", 3f, new ConfigDescription("Drop Items Pickup Range While Cataclysm Multiprier", new AcceptableValueRange<float>(1f, 5f)));
@@ -63,6 +67,7 @@ namespace CataclysmMining
             harvestingRange = Config.Bind<int>("Harvesting", "Harvesting Range", 4, "Harvesting Range Radius");
             harvestingFlowers = Config.Bind<bool>("Harvesting", "Harvesting Flowers", false, "Set to false to disable harvesting flowers.");
             harvestingInfuse = Config.Bind<bool>("Harvesting", "Mana Infuse", true, "Set to false to disable mana infuse crops.");
+            harvestingShake = Config.Bind<bool>("Harvesting", "Shake Fruit Trees", true, "Set to false to disable shaking trees.");
             pickupEnabled = Config.Bind<bool>("Pickup", "Pickup", true, "Set to false to disable pickup.");
             pickupRange = Config.Bind<int>("Pickup", "Pickup Range", 4, "Pickup Range Radius");
 

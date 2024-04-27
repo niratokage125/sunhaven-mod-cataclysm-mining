@@ -21,34 +21,43 @@ namespace CataclysmMining
         {
             if (!Plugin.modEnabled.Value || !Plugin.cataclysmRunning)
             {
+                Plugin.lastInteraction = 0f;
                 Plugin.interactives.Clear();
-                Plugin.lastInteraction = 0.0;
                 return;
             }
 
+            Plugin.playPickupSound = true;
             Plugin.lastInteraction += Time.deltaTime;
-            if (Plugin.interactives.Count > 0 && Plugin.lastInteraction > 0.05)
+            if (Plugin.interactCooldown.Value > 0f && Plugin.lastInteraction > Plugin.interactCooldown.Value && Plugin.interactives.Count > 0)
             {
                 var interactive = Plugin.interactives.Dequeue();
-                if (interactive is Crop crop)
+                if (interactive is IInteractable interactable && interactable.InteractionPoint.canInteract)
                 {
-                    crop.Interact(0);
+                    interactable.Interact(0);
                 }
-                else if (interactive is PickupDecoration pickup)
-                {
-                    pickup.Interact(0);
-                }
-                Plugin.lastInteraction = 0.0;
+                Plugin.lastInteraction = 0f;
             }
+            else if (Plugin.interactCooldown.Value <= 0f)
+            {
+                while (Plugin.interactives.Count > 0)
+                {
+                    var interactive = Plugin.interactives.Dequeue();
+                    if (interactive is IInteractable interactable && interactable.InteractionPoint.canInteract)
+                    {
+                        interactable.Interact(0);
+                    }
+                }
+                Plugin.lastInteraction = 0f;
+            }
+            
             
             Plugin.cooldowns.ForEach(x => x.cooldown -= Time.deltaTime);
             Plugin.cooldowns.RemoveAll(x => x.cooldown <= 0f);
 
             var transform = Player.Instance.transform;
-            var range = Math.Max(Plugin.miningRange.Value, 1);
-
             if (Plugin.miningEnabled.Value)
             {
+                var range = Math.Max(Plugin.miningRange.Value, 1);
                 List<Rock> list = Utilities.CircleCast<Rock>(transform.position, (float)range);
                 for (int i = 0; i < list.Count; i++)
                 {
@@ -160,6 +169,7 @@ namespace CataclysmMining
                 var pos = Player.Instance.ExactPosition;
                 var subRange = Math.Max(Plugin.harvestingRange.Value, 1) * 6;
                 var crops = new List<Crop>();
+                var trees = new List<ForageTree>();
                 for (var i = -subRange; i <= subRange; i++)
                 {
                     for (var j = -subRange; j <= subRange; j++)
@@ -174,6 +184,10 @@ namespace CataclysmMining
                         if (decoration is Crop crop && !crops.Contains(crop))
                         {
                             crops.Add(crop);
+                        }
+                        if (decoration is ForageTree tree && !trees.Contains(tree))
+                        {
+                            trees.Add(tree);
                         }
                     }
                 }
@@ -210,7 +224,10 @@ namespace CataclysmMining
                                     decoration = crop,
                                     cooldown = Plugin.hitCooldown.Value
                                 });
-                                Plugin.interactives.Enqueue(crop);
+                                if (crop.InteractionPoint.canInteract)
+                                {
+                                    Plugin.interactives.Enqueue(crop);
+                                }
                             }
                         }
                     }
@@ -233,12 +250,33 @@ namespace CataclysmMining
                         canReflect = false
                     });
                 }
+                if (Plugin.harvestingShake.Value)
+                {
+                    foreach (var tree in trees)
+                    {
+                        if (Plugin.cooldowns.Any(x => x.decoration == tree) || Plugin.interactives.Contains(tree))
+                        {
+                            continue;
+                        }
+                        Plugin.cooldowns.Add(new Plugin.DecorationHitCooldown
+                        {
+                            decoration = tree,
+                            cooldown = Plugin.hitCooldown.Value
+                        });
+                        if (!tree.InteractionPoint.canInteract)
+                        {
+                            continue;
+                        }
+                        Plugin.interactives.Enqueue(tree);
+                    }
+                }
             }
             if (Plugin.pickupEnabled.Value)
             {
                 var pos = Player.Instance.ExactPosition;
-                var subRange = Math.Max(Plugin.harvestingRange.Value, 1) * 6;
-                var pickups = new List<PickupDecoration>();
+                var range = Math.Max(Plugin.harvestingRange.Value, 1);
+                var subRange = range * 6;
+                var pickups = new List<Decoration>();
                 for (var i = -subRange; i <= subRange; i++)
                 {
                     for (var j = -subRange; j <= subRange; j++)
@@ -254,9 +292,17 @@ namespace CataclysmMining
                         {
                             pickups.Add(pickup);
                         }
+                        if (decoration is Forageable forage && !pickups.Contains(forage))
+                        {
+                            pickups.Add(forage);
+                        }
                     }
                 }
-                foreach(var pickup in pickups)
+
+                List<GoldenPomegranatePickup> pomegranates = Utilities.CircleCast<GoldenPomegranatePickup>(transform.position, (float)range);
+                pickups.AddRange(pomegranates);
+
+                foreach (var pickup in pickups)
                 {
                     if (Plugin.cooldowns.Any(x => x.decoration == pickup) || Plugin.interactives.Contains(pickup))
                     {
@@ -267,6 +313,10 @@ namespace CataclysmMining
                         decoration = pickup,
                         cooldown = Plugin.hitCooldown.Value
                     });
+                    if (!pickup.InteractionPoint.canInteract)
+                    {
+                        continue;
+                    }
                     Plugin.interactives.Enqueue(pickup);
                 }
             }
@@ -294,24 +344,45 @@ namespace CataclysmMining
             return false;
         }
 
-        [HarmonyPatch("Pickup"), HarmonyReversePatch]
         public static void MyPickup(object instance, ItemData item, int amount, bool rollForExtra)
         {
-            IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+            var player = instance as Player;
+            if (player == null)
             {
-                var code = new List<CodeInstruction>(instructions);
-
-                for (int i = 0; i < code.Count; i++)
-                {
-                    if (code[i].OperandIs(0.13f))
-                    {
-                        code[i].operand = 0.01f;
-                    }
-                }
-
-                return code;
+                return;
             }
-            _ = Transpiler(null);
+            if (Plugin.playPickupSound)
+            {
+                AudioManager.Instance.PlayAudio(SingletonBehaviour<Prefabs>.Instance.pickupSound, 0.4f, 0f);
+                Plugin.playPickupSound = false;
+            }
+            if (rollForExtra)
+            {
+                if (GameSave.Exploration.GetNode("Exploration1c", true) && Utilities.Chance((float)GameSave.Exploration.GetNodeAmount("Exploration1c", 3, true) * 0.1f + 0.1f))
+                {
+                    amount++;
+                }
+                if (Utilities.Chance(player.GetStat(StatType.ExtraForageableChance)))
+                {
+                    amount++;
+                }
+            }
+            player.Inventory.AddItem(item.GenerateItem(), amount, 0, true, true, true);
+            player.lastPickupTime = Time.time;
+        }
+
+        [HarmonyPatch("AddPauseObject"), HarmonyPrefix]
+        public static bool AddPauseObject_Prefix(string id)
+        {
+            if (!Plugin.modEnabled.Value || !Plugin.cataclysmRunning)
+            {
+                return true;
+            }
+            if( id == "forage")
+            {
+                return false;
+            }
+            return true;
         }
     }
 }
