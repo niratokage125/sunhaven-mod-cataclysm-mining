@@ -47,7 +47,7 @@ namespace CataclysmMining
 
         private const string PluginGuid = "niratokage125.sunhaven.CataclysmMining";
         private const string PluginName = "CataclysmMining";
-        private const string PluginVer = "1.0.1";
+        private const string PluginVer = "1.0.2";
         private void Awake()
         {
             logger = Logger;

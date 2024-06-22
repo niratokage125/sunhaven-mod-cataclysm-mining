@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using PSS;
 using Sirenix.Utilities;
 using System;
 using System.Collections.Generic;
@@ -334,7 +335,7 @@ namespace CataclysmMining
         }
 
         [HarmonyPatch("Pickup"), HarmonyPrefix]
-        public static bool Pickup_Prefix(object __instance, ItemData item, int amount, bool rollForExtra)
+        public static bool Pickup_Prefix(object __instance, int item, int amount, bool rollForExtra)
         {
             if (!Plugin.modEnabled.Value || !Plugin.cataclysmRunning)
             {
@@ -344,30 +345,33 @@ namespace CataclysmMining
             return false;
         }
 
-        public static void MyPickup(object instance, ItemData item, int amount, bool rollForExtra)
+        public static void MyPickup(object instance, int item, int amount, bool rollForExtra)
         {
             var player = instance as Player;
             if (player == null)
             {
                 return;
             }
-            if (Plugin.playPickupSound)
+            Database.GetData<ItemData>(item, delegate (ItemData data)
             {
-                AudioManager.Instance.PlayAudio(SingletonBehaviour<Prefabs>.Instance.pickupSound, 0.4f, 0f);
-                Plugin.playPickupSound = false;
-            }
-            if (rollForExtra)
-            {
-                if (GameSave.Exploration.GetNode("Exploration1c", true) && Utilities.Chance((float)GameSave.Exploration.GetNodeAmount("Exploration1c", 3, true) * 0.1f + 0.1f))
+                if (Plugin.playPickupSound)
                 {
-                    amount++;
+                    AudioManager.Instance.PlayAudio(SingletonBehaviour<Prefabs>.Instance.pickupSound, 0.4f, 0f);
+                    Plugin.playPickupSound = false;
                 }
-                if (Utilities.Chance(player.GetStat(StatType.ExtraForageableChance)))
+                if (rollForExtra)
                 {
-                    amount++;
+                    if (GameSave.Exploration.GetNode("Exploration1c", true) && Utilities.Chance((float)GameSave.Exploration.GetNodeAmount("Exploration1c", 3, true) * 0.1f + 0.1f))
+                    {
+                        amount++;
+                    }
+                    if (Utilities.Chance(player.GetStat(StatType.ExtraForageableChance)))
+                    {
+                        amount++;
+                    }
                 }
-            }
-            player.Inventory.AddItem(item.GenerateItem(), amount, 0, true, true, true);
+                player.Inventory.AddItem(data.GenerateItem(), amount, 0, true, true, true);
+            }, null);
             player.lastPickupTime = Time.time;
         }
 
